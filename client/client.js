@@ -1,6 +1,7 @@
 const BG_COLOUR = '#231f20';
 
-const socket = io('http://localhost:3000', {transports: ['websocket'], upgrade: false});
+const socket = io('https://snake-stage.herokuapp.com/'//'http://localhost:3000'
+                ,{transports: ['websocket'], upgrade: false});
 socket.on('init', handleInit);
 socket.on('gameState', handleGameState);
 
