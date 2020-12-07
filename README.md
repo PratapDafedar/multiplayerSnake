@@ -8,4 +8,4 @@ If you want to see how to deploy the game check out [this video](https://www.you
 npx live-server
 
 # To run server code local
-npx nodemon master.js
+npx nodemon server.js

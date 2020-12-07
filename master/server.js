@@ -17,7 +17,7 @@ io.on('connection', client => {
     client.on('disconnect', () => {
         delete connectedClients[client.id];
         clientCount--;
-        client.emit('stop');
+        client.emit('terminate');
         console.log('disconnected: ' + client.id + ' remaining: ' + clientCount);
     });
     
@@ -43,6 +43,11 @@ io.on('connection', client => {
                 pos: { x: spawnX, y: spawnY },
                 dir: { x: 0, y: 0 },
                 tail: [
+                    { x: spawnX, y: spawnY + 10 },
+                    { x: spawnX, y: spawnY + 9 },
+                    { x: spawnX, y: spawnY + 8 },
+                    { x: spawnX, y: spawnY + 7 },
+                    { x: spawnX, y: spawnY + 6 },
                     { x: spawnX, y: spawnY + 5 },
                     { x: spawnX, y: spawnY + 4 },
                     { x: spawnX, y: spawnY + 3 },
@@ -63,7 +68,7 @@ io.on('connection', client => {
         let snake = connectedClients[client.id];
 
         let inputQueue = snake.inputQueue;
-        if (inputQueue.length > 4) 
+        if (inputQueue.length > 6) 
         {
             inputQueue.shift();
         }
@@ -143,9 +148,40 @@ function UpdateSnake(snake)
 }
 
 function emitGameState(room, gameState) {
-    var jsonGameState = JSON.stringify(gameState);
+    //var jsonGameState = JSON.stringify(gameState);
     // console.log("Emit : " + io.sockets.in(room));
-    io.sockets.in(room).emit('gameState', jsonGameState);
+
+    var byteCount = 0;
+    for (let clientState of gameState) {
+        byteCount += 2; //offset
+        byteCount += 4; //pos
+        byteCount += clientState.tail.length * 4; //tail
+    }
+    //console.log("send: " + byteCount)
+    var buffer = new ArrayBuffer(byteCount);
+    const view = new DataView(buffer);
+    var index = 0;
+    for (let clientState of gameState) {
+        view.setInt16(index, 2 + 4 + clientState.tail.length * 4);
+        index += 2;
+        
+        view.setInt16(index, clientState.pos.x);
+        index += 2;
+        
+        view.setInt16(index, clientState.pos.y);
+        index += 2;
+        
+        for (let tail of clientState.tail) {
+            view.setInt16(index, tail.x);
+            index += 2;
+
+            view.setInt16(index, tail.y);
+            index += 2;
+        }
+        // console.log(buffer);
+        // console.log(Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join(''));
+    };
+    io.sockets.in(room).emit('gameState', buffer);
 }
 
 io.listen(process.env.PORT || 3000);

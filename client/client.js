@@ -1,19 +1,25 @@
 const BG_COLOUR = '#231f20';
 
-const socket = io('https://snake-stage.herokuapp.com/'//'http://localhost:3000'
-                );//,{transports: ['websocket'], upgrade: false});
+const socket = io(
+                    // 'https://snake-stage.herokuapp.com/'
+                    'http://localhost:3000'
+                    ,{transports: ['websocket'], upgrade: false}
+                );
 socket.on('init', handleInit);
 socket.on('gameState', handleGameState);
-
-const gameScreen = document.getElementById('gameScreen');
-const joinGameBtn = document.getElementById('joinGameButton');
-
-let canvas, ctx;
+socket.on('terminate', function() {
+    console.log('Client has exited in server');
+});
 
 window.addEventListener('beforeunload', function (e) {
     console.log("disconnecting...");
     socket.disconnect();
 });
+
+const gameScreen = document.getElementById('gameScreen');
+const joinGameBtn = document.getElementById('joinGameButton');
+
+let canvas, ctx;
 
 /**** ENGINE SETUP ****/
 var frameCount = 0;
@@ -69,16 +75,43 @@ function handleInit(data)
     DrawSnake(snake, initData.cellSize, initData.cellSize - 1, 'orange', 'white');
 }
 
-function handleGameState(jsonState)
+function handleGameState(buffer)
 {
-    //console.log('gameState: ' + jsonState);
-    var gameStates = JSON.parse(jsonState)
-
     Update();
-    for (let state of gameStates)
-    {
-        DrawSnake(state, initData.cellSize, initData.cellSize - 1, 'orange', 'white');
+
+    console.log(buffer.byteLength + ' : ' + Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join(''));
+    var index = 0;
+    while (index < buffer.byteLength) {
+        let offset = bytesToint16(buffer.slice(index, index + 2));
+        index += 2;
+        let posX = bytesToint16(buffer.slice(index, index + 2));
+        index += 2;
+        let posY = bytesToint16(buffer.slice(index, index + 2));
+        index += 2;
+        let tail = []
+        for (let i = 6; i < offset; i+= 4) {
+            let posX = bytesToint16(buffer.slice(index, index + 2));
+            index += 2;
+            let posY = bytesToint16(buffer.slice(index, index + 2));
+            index += 2;
+            tail.push( { x: posX, y: posY } );
+        }
+
+        let snake = {
+            pos: { x: posX, y: posY },
+            tail: tail,
+        }
+        DrawSnake(snake, initData.cellSize, initData.cellSize - 1, 'orange', 'white');
+    };
+}
+
+function bytesToint16(buffer)
+{
+    if (buffer.byteLength != 2) {
+        console.log('This buffer size is not exactly 2. size: ' + buffer.byteLength);
     }
+    const view = new DataView(buffer);
+    return view.getUint16(0);
 }
 
 function Start()
