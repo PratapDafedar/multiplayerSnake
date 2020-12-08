@@ -2,7 +2,7 @@ const BG_COLOUR = '#231f20';
 
 const socket = io(
                     'https://snake-stage.herokuapp.com/'
-                    // 'http://localhost:3000'
+                    //  'http://localhost:3000'
                     ,{transports: ['websocket'], upgrade: false}
                 );
 socket.on('init', handleInit);
@@ -84,12 +84,8 @@ function handleGameState(buffer)
     while (index < buffer.byteLength) {
         let offset = bytesToint16(buffer.slice(index, index + 2));
         index += 2;
-        let posX = bytesToint16(buffer.slice(index, index + 2));
-        index += 2;
-        let posY = bytesToint16(buffer.slice(index, index + 2));
-        index += 2;
         let tail = []
-        for (let i = 6; i < offset; i+= 4) {
+        for (let i = 2; i < offset; i+= 4) {
             let posX = bytesToint16(buffer.slice(index, index + 2));
             index += 2;
             let posY = bytesToint16(buffer.slice(index, index + 2));
@@ -98,7 +94,6 @@ function handleGameState(buffer)
         }
 
         let snake = {
-            pos: { x: posX, y: posY },
             tail: tail,
         }
         DrawSnake(snake, initData.cellSize, initData.cellSize - 1, 'orange', 'white');
@@ -142,13 +137,32 @@ function Update()
 
 function DrawSnake(snake, step, size, headColor, tailColor)
 {
-    //console.log(snake);
-    ctx.fillStyle = tailColor;
-    for (let cell of snake.tail) 
+    let tailLength = snake.tail.length;
+
+    let prev = snake.tail[0];
+    for (let i = 1; i < tailLength; i++) 
     {
-        ctx.fillRect(cell.x * step, cell.y * step, size, size);
+        let cur = snake.tail[i];
+        let dx = cur.x - prev.x;
+        let dy = cur.y - prev.y;
+        let dxa = Math.abs(dx);
+        let dya = Math.abs(dy);
+        let length = Math.max(dxa, dya)
+        if (length == 0) continue;
+
+        for(let j = 0; j < length; j++)
+        {
+            let x = prev.x;
+            let y = prev.y;
+            if (dxa > dya) x += j * Math.sign(dx);
+            else y += j * Math.sign(dy);
+            ctx.fillStyle = tailColor;
+            ctx.fillRect(x * step, y * step, size, size);
+        }
+        prev = cur;
     }
 
+    cell = snake.tail[tailLength - 1];
     ctx.fillStyle = headColor;
-    ctx.fillRect(snake.pos.x * step, snake.pos.y * step, size, size);
+    ctx.fillRect(cell.x * step, cell.y * step, size, size);
 }

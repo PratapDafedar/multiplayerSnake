@@ -33,36 +33,6 @@ io.on('connection', client => {
         startGameInterval(ROOM_NAME);
     }
 
-    function getInitData(id)
-    {
-        let spawnX = Math.floor(Math.random() * GRID_SIZE);
-        let spawnY = GRID_SIZE - 20;
-        return {
-            snake: {
-                id: id,
-                pos: { x: spawnX, y: spawnY },
-                dir: { x: 0, y: 0 },
-                tail: [
-                    { x: spawnX, y: spawnY + 10 },
-                    { x: spawnX, y: spawnY + 9 },
-                    { x: spawnX, y: spawnY + 8 },
-                    { x: spawnX, y: spawnY + 7 },
-                    { x: spawnX, y: spawnY + 6 },
-                    { x: spawnX, y: spawnY + 5 },
-                    { x: spawnX, y: spawnY + 4 },
-                    { x: spawnX, y: spawnY + 3 },
-                    { x: spawnX, y: spawnY + 2 },
-                    { x: spawnX, y: spawnY + 1 },
-                ],
-                inputQueue: [ { x: 0, y: -1 } ],
-            },
-            gridSize: GRID_SIZE,
-            cellSize: CELL_SIZE,
-            speed: SPEED,
-            fps: FPS
-        };
-    }
-
     function handleKeydown(keyCode)
     {
         let snake = connectedClients[client.id];
@@ -106,6 +76,32 @@ io.on('connection', client => {
     }
 });
 
+function getInitData()
+{
+    return {
+        snake: getInitSnakeData(),
+        gridSize: GRID_SIZE,
+        cellSize: CELL_SIZE,
+        speed: SPEED,
+        fps: FPS
+    };
+}
+
+function getInitSnakeData()
+{
+    let spawnX = Math.floor(Math.random() * GRID_SIZE);
+    let spawnY = GRID_SIZE - 20;
+    return {
+        dir: { x: 0, y: 0 },
+        tail: [
+            { x: spawnX + 4, y: spawnY - 24 },
+            { x: spawnX + 4, y: spawnY + 4 },
+            { x: spawnX, y: spawnY + 4 },
+            { x: spawnX, y: spawnY },
+        ],
+        inputQueue: [ { x: 0, y: -1 } ],
+    }
+}
 
 function startGameInterval(roomName) 
 {
@@ -129,22 +125,59 @@ function startGameInterval(roomName)
 
 function UpdateSnake(snake)
 {
-    snake.tail.push( { x: snake.pos.x, y: snake.pos.y } );
-    
     if (snake.inputQueue.length > 0)
     {
         snake.dir = snake.inputQueue.shift();
     }
     
-    snake.pos.x += snake.dir.x * SPEED;
-    snake.pos.y += snake.dir.y * SPEED;
+    let lastIndex = snake.tail.length - 1;
+    let posX = snake.tail[lastIndex].x;
+    let posY = snake.tail[lastIndex].y;
+    let prevX = snake.tail[lastIndex - 1].x;
+    let prevY = snake.tail[lastIndex - 1].y;
+
+    let nextPosX = posX + snake.dir.x * SPEED;
+    let nextPosY = posY + snake.dir.y * SPEED;
+
+    if (nextPosX - prevX != 0 && nextPosY - prevY != 0)
+    {
+        lastIndex ++;
+        snake.tail.push( { x : nextPosX, y : nextPosY } );
+    }
+    else{
+        snake.tail[lastIndex].x = nextPosX;
+        snake.tail[lastIndex].y = nextPosY;
+    }
+
+    let dx = Math.sign(snake.tail[1].x - snake.tail[0].x) * SPEED;
+    let dy = Math.sign(snake.tail[1].y - snake.tail[0].y) * SPEED;
     
-    if (snake.pos.x < 0) snake.pos.x = GRID_SIZE - 1;
-    if (snake.pos.y < 0) snake.pos.y = GRID_SIZE - 1;
-    if (snake.pos.x > GRID_SIZE) snake.pos.x = 0;
-    if (snake.pos.y > GRID_SIZE) snake.pos.y = 0;
+    if (dx == 0 && dy == 0 && lastIndex > 1)
+    {
+        snake.tail.shift();
+        lastIndex --;
+
+        snake.tail[0].x += Math.sign(snake.tail[1].x - snake.tail[0].x) * SPEED;
+        snake.tail[0].y += Math.sign(snake.tail[1].y - snake.tail[0].y) * SPEED;
+    }
+    else 
+    {
+        snake.tail[0].x += dx;
+        snake.tail[0].y += dy;
+    }
     
-    snake.tail.shift();
+    if (snake.tail[lastIndex].x < 0 ||
+        snake.tail[lastIndex].y < 0 || 
+        snake.tail[lastIndex].x > GRID_SIZE ||
+        snake.tail[lastIndex].y > GRID_SIZE) 
+    {
+        const initData = getInitSnakeData();
+        snake.tail = initData.tail;
+        snake.dir = initData.dir;
+        snake.inputQueue = initData.inputQueue;
+    }
+    
+    // console.log(JSON.stringify(snake));
 }
 
 function emitGameState(room, gameState) {
@@ -154,7 +187,6 @@ function emitGameState(room, gameState) {
     var byteCount = 0;
     for (let clientState of gameState) {
         byteCount += 2; //offset
-        byteCount += 4; //pos
         byteCount += clientState.tail.length * 4; //tail
     }
     //console.log("send: " + byteCount)
@@ -162,13 +194,7 @@ function emitGameState(room, gameState) {
     const view = new DataView(buffer);
     var index = 0;
     for (let clientState of gameState) {
-        view.setInt16(index, 2 + 4 + clientState.tail.length * 4);
-        index += 2;
-        
-        view.setInt16(index, clientState.pos.x);
-        index += 2;
-        
-        view.setInt16(index, clientState.pos.y);
+        view.setInt16(index, 2 + clientState.tail.length * 4);
         index += 2;
         
         for (let tail of clientState.tail) {
